@@ -7,6 +7,8 @@ import (
 	"github.com/apprenda/kismatic/pkg/install"
 	"github.com/apprenda/kismatic/pkg/util"
 	"github.com/spf13/cobra"
+	"strings"
+	"fmt"
 )
 
 type stepCmd struct {
@@ -21,6 +23,7 @@ type stepCmd struct {
 	restartServices    bool
 	verbose            bool
 	outputFormat       string
+	extraVars          []string
 }
 
 // NewCmdStep returns the step command
@@ -36,11 +39,16 @@ func NewCmdStep(out io.Writer, opts *installOpts) *cobra.Command {
 			if len(args) != 1 {
 				return cmd.Usage()
 			}
+			ev, err := stepCmd.getExtraVarsMap()
+			if err != nil {
+				return err
+			}
 			execOpts := install.ExecutorOptions{
 				GeneratedAssetsDirectory: stepCmd.generatedAssetsDir,
 				RestartServices:          stepCmd.restartServices,
 				OutputFormat:             stepCmd.outputFormat,
 				Verbose:                  stepCmd.verbose,
+				ExtraVars:                ev,
 			}
 			executor, err := install.NewExecutor(out, os.Stderr, execOpts)
 			if err != nil {
@@ -57,6 +65,8 @@ func NewCmdStep(out io.Writer, opts *installOpts) *cobra.Command {
 	cmd.Flags().BoolVar(&stepCmd.restartServices, "restart-services", false, "force restart cluster services (Use with care)")
 	cmd.Flags().BoolVar(&stepCmd.verbose, "verbose", false, "enable verbose logging from the installation")
 	cmd.Flags().StringVarP(&stepCmd.outputFormat, "output", "o", "simple", "installation output format (options \"simple\"|\"raw\")")
+	cmd.Flags().StringSliceVar(&stepCmd.extraVars, "extra-vars", []string{}, "ansible varaibles (comma separated, key=value)")
+	cmd.Flags().MarkHidden("extra-vars")
 	return cmd
 }
 
@@ -76,4 +86,17 @@ func (c stepCmd) run() error {
 	}
 	util.PrintColor(c.out, util.Green, "\nTask completed successfully\n\n")
 	return nil
+}
+
+func (c stepCmd) getExtraVarsMap() (map[string]string, error) {
+	ev := map[string]string{}
+	for _, kv := range c.extraVars {
+		kvSplit := strings.Split(kv, "=")
+		if len(kvSplit) != 2 {
+			return nil, fmt.Errorf("Bad request in extra-vars with %q", c.extraVars)
+		}
+		ev[kvSplit[0]] = kvSplit[1]
+	}
+
+	return ev, nil
 }

@@ -48,6 +48,9 @@ type ExecutorOptions struct {
 	Verbose bool
 	// RunsDirectory is where information about installation runs is kept
 	RunsDirectory string
+	// ExtraVars temporary field, an arbitrary map of Ansible variables
+	// TODO remove when volume-add cli is added
+	ExtraVars map[string]string
 }
 
 // NewExecutor returns an executor for performing installations according to the installation plan.
@@ -77,7 +80,7 @@ func NewExecutor(stdout io.Writer, errOut io.Writer, options ExecutorOptions) (E
 		CAConfigFile:            filepath.Join(ansibleDir, "playbooks", "tls", "ca-config.json"),
 		CASigningProfile:        "kubernetes",
 		GeneratedCertsDirectory: certsDir,
-		Log: stdout,
+		Log:                     stdout,
 	}
 	return &ansibleExecutor{
 		options:             options,
@@ -225,6 +228,15 @@ func (ae *ansibleExecutor) buildInstallExtraVars(p *Plan, tlsDirectory string) (
 	if p.Storage.Nodes != nil && len(p.Storage.Nodes) > 0 {
 		ev["configure_storage"] = "true"
 	}
+
+	// Merge with CLI extra-vars
+	// TODO remove later
+	if ae.options.ExtraVars != nil {
+		for k, v := range ae.options.ExtraVars {
+			ev[k] = v
+		}
+	}
+
 	return &ev, nil
 }
 
