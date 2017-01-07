@@ -1,14 +1,11 @@
 package install
 
-import "fmt"
+import (
+	"fmt"
 
-// SSHDetails is an interface to allow to SSH into nodes
-type SSHDetails interface {
-	GetSSHAddress()
-	GetSSHPort()
-	GetSSHKeyPath()
-	GetSSHUsername()
-}
+	"github.com/docker/machine/libmachine/ssh"
+	libmachinessh "github.com/docker/machine/libmachine/ssh"
+)
 
 // NetworkConfig describes the cluster's networking configuration
 type NetworkConfig struct {
@@ -95,6 +92,17 @@ type SSHConnection struct {
 	Retries   uint
 }
 
+// NewClient returns a libmachine ssh client
+func (con *SSHConnection) NewClient() (libmachinessh.Client, error) {
+	user := con.getSSHUsername()
+	addr := con.getSSHAddress()
+	port := con.getSSHPort()
+	auth := &ssh.Auth{Keys: []string{con.getSSHKeyPath()}}
+
+	client, err := libmachinessh.NewClient(user, addr, port, auth)
+	return client, err
+}
+
 // GetSSHConnection returns the SSHConnection struct containing the node and SSHConfig details
 func (p *Plan) GetSSHConnection(host string) (*SSHConnection, error) {
 	nodes := []Node{}
@@ -120,18 +128,18 @@ func (p *Plan) GetSSHConnection(host string) (*SSHConnection, error) {
 	return &SSHConnection{&p.Cluster.SSH, foundNode, 1}, nil
 }
 
-func (ssh *SSHConnection) GetSSHAddress() string {
+func (ssh *SSHConnection) getSSHAddress() string {
 	return ssh.Node.IP
 }
 
-func (ssh *SSHConnection) GetSSHPort() int {
+func (ssh *SSHConnection) getSSHPort() int {
 	return ssh.SSHConfig.Port
 }
 
-func (ssh *SSHConnection) GetSSHKeyPath() string {
+func (ssh *SSHConnection) getSSHKeyPath() string {
 	return ssh.SSHConfig.Key
 }
 
-func (ssh *SSHConnection) GetSSHUsername() string {
+func (ssh *SSHConnection) getSSHUsername() string {
 	return ssh.SSHConfig.User
 }

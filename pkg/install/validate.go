@@ -6,14 +6,11 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/apprenda/kismatic/pkg/retry"
-	"github.com/apprenda/kismatic/pkg/util"
+	"github.com/apprenda/kismatic/pkg/ssh"
 )
 
 // TODO: There is need to run validation against anything that is validatable.
@@ -191,16 +188,10 @@ func (s *SSHConfig) validate() (bool, []error) {
 func (s *SSHConnections) validate() (bool, []error) {
 	v := newValidator()
 
-	auth, err := util.GetUnencryptedPublicKeyAuth(s.SSHConfig.Key)
+	err := ssh.ValidUnecryptedPrivateKey(s.SSHConfig.Key)
 	if err != nil {
 		v.addError(fmt.Errorf("error parsing SSH key: %v", err))
 	} else {
-		sshClientConfig := &ssh.ClientConfig{
-			User: s.SSHConfig.User,
-			Auth: []ssh.AuthMethod{
-				auth,
-			},
-		}
 		var wg sync.WaitGroup
 		errQueue := make(chan error, len(s.Nodes))
 		// number of nodes
@@ -208,7 +199,7 @@ func (s *SSHConnections) validate() (bool, []error) {
 		for _, node := range s.Nodes {
 			go func(node Node) {
 				defer wg.Done()
-				sshErr := retry.Linear(func() error { return verifySSH(&node, s.SSHConfig, sshClientConfig) }, s.Retries)
+				sshErr := verifySSH(&SSHConnection{SSHConfig: s.SSHConfig, Node: &node, Retries: s.Retries})
 				// Need to send something the buffered channel
 				if sshErr != nil {
 					errQueue <- fmt.Errorf("SSH connectivity validation failed for %q: %v", node.IP, sshErr)
@@ -217,6 +208,7 @@ func (s *SSHConnections) validate() (bool, []error) {
 				}
 			}(node)
 		}
+
 		// Wait for all nodes to complete, then close channel
 		go func() {
 			wg.Wait()
@@ -234,20 +226,13 @@ func (s *SSHConnections) validate() (bool, []error) {
 	return v.valid()
 }
 
-func verifySSH(node *Node, sshConfig *SSHConfig, sshClientConfig *ssh.ClientConfig) error {
-	server := node.IP + ":" + strconv.Itoa(sshConfig.Port)
-	conn, err := net.DialTimeout("tcp", server, time.Second*5)
+func verifySSH(con *SSHConnection) error {
+	client, err := con.NewClient()
 	if err != nil {
 		return err
 	}
-
-	// Try to connect with a timeout
-	sshConn, _, _, err := ssh.NewClientConn(conn, server, sshClientConfig)
-	if err == nil {
-		conn.Close()
-		sshConn.Close()
-	}
-	return err
+	// just exit
+	return retry.Linear(func() error { return client.Shell("exit") }, con.Retries)
 }
 
 func (ng *NodeGroup) validate() (bool, []error) {
