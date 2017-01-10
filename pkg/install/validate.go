@@ -227,7 +227,7 @@ func (s *SSHConnections) validate() (bool, []error) {
 }
 
 func verifySSH(con *SSHConnection) error {
-	client, err := con.NewClient()
+	client, err := ssh.NewClient(*con)
 	if err != nil {
 		return err
 	}

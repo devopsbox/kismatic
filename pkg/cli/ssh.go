@@ -5,6 +5,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/apprenda/kismatic/pkg/ssh"
+
 	"github.com/apprenda/kismatic/pkg/install"
 	"github.com/spf13/cobra"
 )
@@ -73,7 +75,7 @@ func doSSH(out io.Writer, planner install.Planner, opts *sshOpts) error {
 		return fmt.Errorf("cannot validate SSH connection to node %q", opts.host)
 	}
 
-	client, err := con.NewClient()
+	client, err := ssh.NewClient(*con)
 	if err != nil {
 		return fmt.Errorf("error creating SSH client: %v", err)
 	}
