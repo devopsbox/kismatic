@@ -1,12 +1,40 @@
 ---
+  - name: verify volume doesn't already exist
+    command: gluster volume list
+    register: out
+    failed_when: "'{{ volume_name }}' in out.stdout"
+
+  - name: test for available disk space
+    assert:
+      that:
+        - "{{ item.size_available > volume_quota_raw|float }}"
+    with_items: "{{ ansible_mounts }}"
+    when: item.mount == volume_mount
+    ignore_errors: yes
+    register: disk_free
+
+  - set_fact:
+      gluster: true
+    when: "{{ disk_free|success }}"
+
+    # build a new node list to add gluster volumes on, only add the number of nodes needed
+  - name: create new gluster node list
+    group_by:
+      key: gluster
+
+  - name: verify available disk space
+    command: /bin/true
+    failed_when: "{{ groups['gluster'] is not defined or groups['gluster']|length < volume_replica_count|int }}"
+    run_once: true
+
   - name: create block directory
     file:
-      path: "{{ volume_base_dir }}/{{ volume_name }}"
+      path: "{{ volume_mount }}{{ volume_base_dir }}{{ volume_name }}"
       state: directory
       mode: "{{ volume_mode }}"
 
   - name: gluster volume create
-    command: gluster volume create {{ volume_name }} replica {{ volume_replica_count }} {% for host in groups['storage'] %} {{ hostvars[host]['inventory_hostname'] }}:/data/{{ volume_name }}{% endfor %} force
+    command: gluster volume create {{ volume_name }} {% if volume_replica_count|int > 1 %} replica {{ volume_replica_count|int }} {% endif %} {% for host in groups['gluster'][0:volume_replica_count|int] %} {{ hostvars[host]['inventory_hostname'] }}:/data/{{ volume_name }} {% endfor %} force
     run_once: true
     ignore_errors: yes  #TODO figure out a better way
 
@@ -23,14 +51,11 @@
   - name: gluster volume quota set
     command: gluster volume quota {{ volume_name }} limit-usage / {{ volume_quota }}
     run_once: true
-    ignore_errors: yes  #TODO figure out a better way
 
   - name: gluster volume quota enable df reporting
     command: gluster volume set {{ volume_name }} quota-deem-statfs on
     run_once: true
-    ignore_errors: yes  #TODO figure out a better way
 
   - name: gluster volume enable nfs
     command: gluster volume set {{ volume_name }} nfs.disable off
     run_once: true
-    ignore_errors: yes  #TODO figure out a better way
