@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apprenda/kismatic/pkg/retry"
 	"github.com/apprenda/kismatic/pkg/ssh"
 )
 
@@ -37,10 +36,10 @@ func ValidateNode(node *Node) (bool, []error) {
 func ValidatePlanSSHConnections(p *Plan) (bool, []error) {
 	v := newValidator()
 
-	v.validateWithErrPrefix("Etcd nodes", &SSHConnections{&p.Cluster.SSH, p.Etcd.Nodes, 3})
-	v.validateWithErrPrefix("Master nodes", &SSHConnections{&p.Cluster.SSH, p.Master.Nodes, 3})
-	v.validateWithErrPrefix("Worker nodes", &SSHConnections{&p.Cluster.SSH, p.Worker.Nodes, 3})
-	v.validateWithErrPrefix("Ingress nodes", &SSHConnections{&p.Cluster.SSH, p.Ingress.Nodes, 3})
+	v.validateWithErrPrefix("Etcd nodes", &SSHConnections{&p.Cluster.SSH, p.Etcd.Nodes})
+	v.validateWithErrPrefix("Master nodes", &SSHConnections{&p.Cluster.SSH, p.Master.Nodes})
+	v.validateWithErrPrefix("Worker nodes", &SSHConnections{&p.Cluster.SSH, p.Worker.Nodes})
+	v.validateWithErrPrefix("Ingress nodes", &SSHConnections{&p.Cluster.SSH, p.Ingress.Nodes})
 
 	return v.valid()
 }
@@ -58,7 +57,7 @@ func ValidateSSHConnections(con *SSHConnections, prefix string) (bool, []error) 
 func ValidateSSHConnection(con *SSHConnection, prefix string) (bool, []error) {
 	v := newValidator()
 
-	v.validateWithErrPrefix(prefix, &SSHConnections{con.SSHConfig, []Node{*con.Node}, con.Retries})
+	v.validateWithErrPrefix(prefix, &SSHConnections{con.SSHConfig, []Node{*con.Node}})
 
 	return v.valid()
 }
@@ -199,7 +198,7 @@ func (s *SSHConnections) validate() (bool, []error) {
 		for _, node := range s.Nodes {
 			go func(node Node) {
 				defer wg.Done()
-				sshErr := verifySSH(&SSHConnection{SSHConfig: s.SSHConfig, Node: &node, Retries: s.Retries})
+				sshErr := verifySSH(&SSHConnection{SSHConfig: s.SSHConfig, Node: &node})
 				// Need to send something the buffered channel
 				if sshErr != nil {
 					errQueue <- fmt.Errorf("SSH connectivity validation failed for %q: %v", node.IP, sshErr)
@@ -232,7 +231,7 @@ func verifySSH(con *SSHConnection) error {
 		return err
 	}
 	// just exit
-	return retry.Linear(func() error { return client.Shell("exit") }, con.Retries)
+	return client.Shell("exit")
 }
 
 func (ng *NodeGroup) validate() (bool, []error) {

@@ -78,13 +78,11 @@ type Plan struct {
 type SSHConnections struct {
 	SSHConfig *SSHConfig
 	Nodes     []Node
-	Retries   uint
 }
 
 type SSHConnection struct {
 	SSHConfig *SSHConfig
 	Node      *Node
-	Retries   uint
 }
 
 // GetSSHConnection returns the SSHConnection struct containing the node and SSHConfig details
@@ -109,7 +107,7 @@ func (p *Plan) GetSSHConnection(host string) (*SSHConnection, error) {
 		return nil, fmt.Errorf("node %q not found in the plan", host)
 	}
 
-	return &SSHConnection{&p.Cluster.SSH, foundNode, 1}, nil
+	return &SSHConnection{&p.Cluster.SSH, foundNode}, nil
 }
 
 func (ssh SSHConnection) GetSSHAddress() string {
